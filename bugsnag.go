@@ -56,9 +56,17 @@ func (hook *bugsnagHook) Fire(entry *logrus.Entry) error {
 	}
 
 	errWithStack := bugsnag_errors.New(notifyErr, skipStackFrames)
+
+	data := make(map[string]interface{})
+	for key, value := range entry.Data {
+		if key != "error" {
+			data[key] = value
+		}
+	}
+
 	bugsnagErr := bugsnag.Notify(
 		errWithStack,
-		bugsnag.MetaData{"Data": entry.Data}, //Add logger additional data
+		bugsnag.MetaData{"Data": data}, //Add logger additional data
 	)
 	if bugsnagErr != nil {
 		return ErrBugsnagSendFailed{bugsnagErr}
