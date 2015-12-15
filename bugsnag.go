@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/bugsnag/bugsnag-go"
+	bugsnag "github.com/bugsnag/bugsnag-go"
 	bugsnag_errors "github.com/bugsnag/bugsnag-go/errors"
 )
 
@@ -44,17 +44,30 @@ const skipStackFrames = 4
 
 // Fire forwards an error to Bugsnag. Given a logrus.Entry, it extracts the
 // "error" field (or the Message if the error isn't present) and sends it off.
+// It also send all the logger data into an additional tab.
 func (hook *bugsnagHook) Fire(entry *logrus.Entry) error {
 	var notifyErr error
-	err, ok := entry.Data["error"].(error)
-	if ok {
+	if errString, ok := entry.Data["error"].(string); ok {
+		notifyErr = errors.New(errString)
+	} else if err, ok := entry.Data["error"].(error); ok {
 		notifyErr = err
 	} else {
 		notifyErr = errors.New(entry.Message)
 	}
 
 	errWithStack := bugsnag_errors.New(notifyErr, skipStackFrames)
-	bugsnagErr := bugsnag.Notify(errWithStack)
+
+	data := make(map[string]interface{})
+	for key, value := range entry.Data {
+		if key != "error" {
+			data[key] = value
+		}
+	}
+
+	bugsnagErr := bugsnag.Notify(
+		errWithStack,
+		bugsnag.MetaData{"Data": data}, //Add logger additional data
+	)
 	if bugsnagErr != nil {
 		return ErrBugsnagSendFailed{bugsnagErr}
 	}
